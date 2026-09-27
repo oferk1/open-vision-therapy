@@ -24,9 +24,15 @@ resources.
 
 - **Next.js 14 (App Router) with path-based navigation** (`/`, `/exercise/[id]`, `/exercise/[id]/session`, `/exercise/[id]/results`, `/history`) — and `output: 'export'` so the build in `out/` is fully static
   and can be dropped into any S3 bucket behind a CDN. No server, no API routes, no SSR.
-- **React Three Fiber + three + three-stdlib** — the scene is rendered twice per frame
-  (left/right eye) and composited through `AnaglyphEffect` (Dubois matrices) in a custom
-  `useFrame` loop that hijacks R3F's default render (`components/AnaglyphRig.tsx`).
+- **React Three Fiber + three** — a custom two-pass anaglyph composer
+  (`components/AnaglyphRig.tsx`): the scene renders once per eye through
+  `THREE.StereoCamera` into render targets, composited Dubois-style (left →
+  red, right → cyan) to the screen.
+- **Random-dot stereogram stimuli** — a single world-locked speckle field
+  camouflages every target; per-eye RDS shader materials
+  (`lib/rdsEyePass.ts`) sample the noise with opposite offsets inside the
+  target mask, so shapes exist only as binocular disparity. With the naked
+  eye every mode is pure noise — red/cyan glasses are always required.
 - **No state libraries, no React Context** — a plain vanilla module-level store
   (`store/therapy.ts`) holds session state and history; components subscribe via
   `useSyncExternalStore`, actions are plain exported functions, and sessionStorage
@@ -60,15 +66,15 @@ Content is read-only client-side; no cache invalidation concerns beyond normal d
 
 | # | Mode | Mechanic |
 |---|------|----------|
-| 1 | Pursuits | Smooth XY drift; E orientation flips; correct answers speed it up and shrink the target |
+| 1 | Pursuits | Smooth XY drift; report the E orientation hidden in the dot noise |
 | 2 | Saccades | Instant random position jumps; identify E orientation at each jump |
-| 3 | Convergence (Base-Out) | Sub-target displaces on +Z (pops out); progressive demand on success |
-| 4 | Divergence (Base-In) | Sub-target displaces on −Z (sinks in); progressive demand on success |
-| 5 | Jump Ductions | Depth snaps between fixed near/far every 1.5 s; report sub-target position |
-| 6 | Jump Random | Depth magnitude randomized within stereo range each presentation |
-| 7 | Accommodative Rock | Toggles small/fine (far focus) vs. large/bold (near focus); report orientation |
-| 8 | Vergence Base Up | Left-eye render shifted vertically up; fuse and report sub-target position |
-| 9 | Vergence Base Down | Left-eye render shifted vertically down; same task, opposite demand |
+| 3 | Convergence (Base-Out) | Sub-target disparity pops toward viewer; fuse and report position |
+| 4 | Divergence (Base-In) | Sub-target disparity sinks into the screen; fuse and report position |
+| 5 | Jump Ductions | Disparity snaps between near/far every 1.5 s; report position |
+| 6 | Jump Random | Disparity magnitude/sign randomized each presentation |
+| 7 | Accommodative Rock | Disparity rocks between far (small demand) and near (large demand) |
+| 8 | Vergence Base Up | Left-eye image shifted vertically up; fuse and report position |
+| 9 | Vergence Base Down | Left-eye image shifted vertically down; same task, opposite demand |
 
 All modes use the same input contract: arrow keys answer, `Esc` exits early, and the
 session ends when the countdown reaches zero (3/5/7-minute defaults per mode).

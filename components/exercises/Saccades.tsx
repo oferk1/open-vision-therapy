@@ -3,33 +3,33 @@
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { makeETexture } from '../../lib/textures';
+import { makeEMaskTexture } from '../../lib/textures';
+import { RdsMaterial } from '../../lib/rdsEyePass';
 import type { ArrowDir, EngineProps } from '../../lib/types';
 import { randDir, randRange } from '../../lib/utils';
 import { useEngineInput } from './shared';
 
 const BOUND = 2.4;
+const TARGET_SIZE = 1.1;
 
 export default function SaccadesEngine({ settings, running, statsRef, inputRef, onStats }: EngineProps) {
   const group = useRef<THREE.Group>(null);
-  const mesh = useRef<THREE.Mesh>(null);
   const orientation = useRef<ArrowDir>(randDir());
   const size = useRef(1.1);
   const timeout = useRef(2.6);
   const timer = useRef(0);
   const awaiting = useRef(true);
 
-  const textures = useMemo(() => ({
-    up: makeETexture('up'),
-    down: makeETexture('down'),
-    left: makeETexture('left'),
-    right: makeETexture('right'),
-  }), []);
-
-  const material = useMemo(
-    () => new THREE.MeshBasicMaterial({ transparent: true, map: textures.up }),
-    [textures]
+  const masks = useMemo(
+    () => ({
+      up: makeEMaskTexture('up'),
+      down: makeEMaskTexture('down'),
+      left: makeEMaskTexture('left'),
+      right: makeEMaskTexture('right'),
+    }),
+    []
   );
+  const material = useMemo(() => new RdsMaterial(masks.up), [masks]);
 
   useEngineInput({ settings, running, statsRef, inputRef, onStats }, () => orientation.current, onAnswered);
 
@@ -44,9 +44,9 @@ export default function SaccadesEngine({ settings, running, statsRef, inputRef, 
   }
 
   useEffect(() => () => {
-    Object.values(textures).forEach((t) => t.dispose());
+    Object.values(masks).forEach((t) => t.dispose());
     material.dispose();
-  }, [textures, material]);
+  }, [masks, material]);
 
   useFrame((_state, delta) => {
     if (!running) return;
@@ -54,13 +54,12 @@ export default function SaccadesEngine({ settings, running, statsRef, inputRef, 
 
     if (awaiting.current) {
       orientation.current = randDir();
-      material.map = textures[orientation.current];
-      material.needsUpdate = true;
+      material.uniforms.uMask.value = masks[orientation.current];
       const g = group.current;
       if (g) {
         g.position.set(randRange(-BOUND, BOUND), randRange(-BOUND, BOUND), 0);
         const sc = size.current;
-        mesh.current?.scale.setScalar(sc);
+        g.scale.setScalar(sc);
       }
       awaiting.current = false;
       timer.current = 0;
@@ -75,12 +74,13 @@ export default function SaccadesEngine({ settings, running, statsRef, inputRef, 
       if (onStats) onStats({ score: { ...s.score }, level: s.level });
       awaiting.current = true;
     }
+    material.uniforms.uShift.value = 0.14;
   });
 
   return (
     <group ref={group} position={[0, 0, 0]}>
-      <mesh ref={mesh} material={material}>
-        <planeGeometry args={[1.1, 1.1]} />
+      <mesh material={material}>
+        <planeGeometry args={[TARGET_SIZE, TARGET_SIZE]} />
       </mesh>
     </group>
   );

@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import type { EngineProps, ExerciseId } from '../lib/types';
+import { SpeckleField } from './SpeckleField';
 import PursuitsEngine from './exercises/Pursuits';
 import SaccadesEngine from './exercises/Saccades';
 import AccommodativeRockEngine from './exercises/AccommodativeRock';
@@ -15,11 +16,11 @@ function FixationCross() {
     []
   );
   return (
-    <group position={[0, 0, -0.05]}>
-      <mesh material={material} position={[0, 0, 0]}>
+    <group position={[0, 0, -0.05]} renderOrder={-5}>
+      <mesh material={material} position={[0, 0, 0]} renderOrder={-5}>
         <planeGeometry args={[0.08, 0.5]} />
       </mesh>
-      <mesh material={material}>
+      <mesh material={material} renderOrder={-5}>
         <planeGeometry args={[0.5, 0.08]} />
       </mesh>
     </group>
@@ -39,6 +40,7 @@ export default function ExerciseScene({ id, engineProps }: { id: ExerciseId; eng
   const showFixation = id !== 'pursuits' && id !== 'saccades' && id !== 'accommodative-rock';
   return (
     <>
+      <SpeckleField />
       {showFixation && <FixationCross />}
       <EngineFor id={id} engineProps={engineProps} />
     </>

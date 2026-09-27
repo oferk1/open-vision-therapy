@@ -3,40 +3,34 @@
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { makeETexture } from '../../lib/textures';
+import { makeEMaskTexture } from '../../lib/textures';
+import { RdsMaterial } from '../../lib/rdsEyePass';
 import type { ArrowDir, EngineProps } from '../../lib/types';
 import { randDir } from '../../lib/utils';
 import { useEngineInput } from './shared';
 
-const FAR_SIZE = 0.55;
-const NEAR_SIZE = 1.5;
+/** Disparity (world units) of the far/near rock states. */
+const FAR_SHIFT = 0.06;
+const NEAR_SHIFT = 0.26;
 
 export default function AccommodativeRockEngine({ settings, running, statsRef, inputRef, onStats }: EngineProps) {
-  const mesh = useRef<THREE.Mesh>(null);
+  const group = useRef<THREE.Group>(null);
   const orientation = useRef<ArrowDir>(randDir());
   const phaseFar = useRef(true);
   const timer = useRef(0);
   const halfPeriod = useRef(2.4);
   const awaiting = useRef(true);
 
-  const farTextures = useMemo(() => ({
-    up: makeETexture('up'),
-    down: makeETexture('down'),
-    left: makeETexture('left'),
-    right: makeETexture('right'),
-  }), []);
-
-  const nearTextures = useMemo(() => ({
-    up: makeETexture('up', true),
-    down: makeETexture('down', true),
-    left: makeETexture('left', true),
-    right: makeETexture('right', true),
-  }), []);
-
-  const material = useMemo(
-    () => new THREE.MeshBasicMaterial({ transparent: true, map: farTextures.up }),
-    [farTextures]
+  const masks = useMemo(
+    () => ({
+      up: makeEMaskTexture('up'),
+      down: makeEMaskTexture('down'),
+      left: makeEMaskTexture('left'),
+      right: makeEMaskTexture('right'),
+    }),
+    []
   );
+  const material = useMemo(() => new RdsMaterial(masks.up), [masks]);
 
   useEngineInput({ settings, running, statsRef, inputRef, onStats }, () => orientation.current, onAnswered);
 
@@ -46,16 +40,15 @@ export default function AccommodativeRockEngine({ settings, running, statsRef, i
     } else {
       halfPeriod.current = Math.min(halfPeriod.current * 1.1, 3.6);
     }
-    // Rock to the opposite focus on every response.
+    // Rock to the opposite depth state on every response.
     phaseFar.current = !phaseFar.current;
     awaiting.current = true;
   }
 
   useEffect(() => () => {
-    Object.values(farTextures).forEach((t) => t.dispose());
-    Object.values(nearTextures).forEach((t) => t.dispose());
+    Object.values(masks).forEach((t) => t.dispose());
     material.dispose();
-  }, [farTextures, nearTextures, material]);
+  }, [masks, material]);
 
   useFrame((_state, delta) => {
     if (!running) return;
@@ -63,15 +56,13 @@ export default function AccommodativeRockEngine({ settings, running, statsRef, i
 
     if (awaiting.current) {
       orientation.current = randDir();
-      material.map = phaseFar.current ? farTextures[orientation.current] : nearTextures[orientation.current];
-      material.needsUpdate = true;
-      if (mesh.current) {
-        mesh.current.scale.setScalar(phaseFar.current ? FAR_SIZE / 1.2 : NEAR_SIZE / 1.2);
-      }
+      material.uniforms.uMask.value = masks[orientation.current];
       awaiting.current = false;
       timer.current = 0;
       return;
     }
+
+    material.uniforms.uShift.value = phaseFar.current ? FAR_SHIFT : NEAR_SHIFT;
 
     timer.current += d;
     if (timer.current >= halfPeriod.current) {
@@ -85,8 +76,8 @@ export default function AccommodativeRockEngine({ settings, running, statsRef, i
   });
 
   return (
-    <group>
-      <mesh ref={mesh} material={material}>
+    <group ref={group}>
+      <mesh material={material}>
         <planeGeometry args={[1.2, 1.2]} />
       </mesh>
     </group>

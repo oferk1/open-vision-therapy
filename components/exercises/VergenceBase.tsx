@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { makeDisparityTexture, makeFrameTexture } from '../../lib/textures';
+import { makeArrowMaskTexture } from '../../lib/textures';
+import { RdsMaterial } from '../../lib/rdsEyePass';
 import type { ArrowDir, EngineProps, ExerciseId } from '../../lib/types';
 import { ARROW_DIRS, randDir, randRange } from '../../lib/utils';
 import { useEngineInput } from './shared';
@@ -20,8 +21,13 @@ interface VergenceBaseProps extends EngineProps {
   variant: VergenceVariant;
 }
 
-const FRAME_SIZE = 3.6;
-const SUB_SIZE = 0.55;
+/**
+ * Disparity scaling: engine `depth` values (config demand + escalation steps)
+ * map to masked-region lateral shift in world units. The shared noise dot
+ * pitch is NOISE_UNITS/512 ≈ 0.008 world units, so SHIFT_SCALE × depth gives
+ * a sensible dot count at default depths.
+ */
+const SHIFT_SCALE = 0.06;
 
 export default function VergenceBaseEngine({
   variant,
@@ -32,10 +38,7 @@ export default function VergenceBaseEngine({
   eyeOffsetRef,
   onStats,
 }: VergenceBaseProps) {
-  const frameRef = useRef<THREE.Mesh>(null);
-  const subRef = useRef<THREE.Mesh>(null);
-  const subGroup = useRef<THREE.Group>(null);
-  const orientation = useRef<ArrowDir>('up');
+  const subGroup = useRef<THREE.Group>(null);  const orientation = useRef<ArrowDir>('up');
   const depth = useRef(settings.baseDepth);
   const targetDepth = useRef(settings.baseDepth);
   const ductionPhase = useRef(0);
@@ -44,20 +47,13 @@ export default function VergenceBaseEngine({
   const pendingPresent = useRef(true);
   const vertical = variant === 'base-up' || variant === 'base-down';
 
-  const textures = useMemo(() => {
+  const subMat = useMemo(() => new RdsMaterial(makeArrowMaskTexture('up')), []);
+
+  const arrowMasks = useMemo(() => {
     const map = {} as Record<ArrowDir, THREE.Texture>;
-    for (const d of ARROW_DIRS) map[d] = makeDisparityTexture(d);
+    for (const d of ARROW_DIRS) map[d] = makeArrowMaskTexture(d);
     return map;
   }, []);
-
-  const frameMat = useMemo(
-    () => new THREE.MeshBasicMaterial({ map: makeFrameTexture(), transparent: true }),
-    []
-  );
-  const subMat = useMemo(
-    () => new THREE.MeshBasicMaterial({ transparent: true, map: textures.up }),
-    [textures]
-  );
 
   useEngineInput(
     { settings, running, statsRef, inputRef, eyeOffsetRef, onStats },
@@ -84,40 +80,34 @@ export default function VergenceBaseEngine({
   }
 
   useEffect(() => () => {
-    Object.values(textures).forEach((t) => t.dispose());
-    frameMat.dispose();
+    Object.values(arrowMasks).forEach((t) => t.dispose());
     subMat.dispose();
-  }, [textures, frameMat, subMat]);
+  }, [arrowMasks, subMat]);
 
   useFrame((_state, delta) => {
     const d = Math.min(delta, 0.05);
-    const sub = subRef.current;
     const sg = subGroup.current;
-    if (!sub || !sg) return;
+    if (!sg) return;
 
     // Vertical vergence exercises drive the per-eye vertical offset instead
-    // of Z-axis disparity.
+    // of masked horizontal disparity.
     if (eyeOffsetRef) {
-      if (vertical) {
-        const off = (variant === 'base-up' ? 1 : -1) * targetDepth.current * 0.15;
-        eyeOffsetRef.current = off;
-      } else {
-        eyeOffsetRef.current = 0;
-      }
+      eyeOffsetRef.current = vertical
+        ? (variant === 'base-up' ? 1 : -1) * targetDepth.current * 0.15
+        : 0;
     }
 
     if (!running) {
-      sub.visible = false;
+      sg.visible = false;
       return;
     }
-    sub.visible = true;
+    sg.visible = true;
 
     if (pendingPresent.current) {
       pendingPresent.current = false;
       timer.current = 0;
       orientation.current = randDir();
-      subMat.map = textures[orientation.current];
-      subMat.needsUpdate = true;
+      subMat.uniforms.uMask.value = arrowMasks[orientation.current];
 
       if (variant === 'convergence') {
         depth.current = targetDepth.current;
@@ -139,35 +129,20 @@ export default function VergenceBaseEngine({
       depth.current = ductionPhase.current % 3.0 < 1.5 ? near : -near;
     }
 
-    // Sub-target sits off-center in a random arrow direction.
+    // Sub-target sits off-center in a random arrow direction; depth becomes
+    // the masked disparity via the RDS material.
     const off = 0.55;
     const ox = orientation.current === 'left' ? -off : orientation.current === 'right' ? off : 0;
     const oy = orientation.current === 'down' ? -off : orientation.current === 'up' ? off : 0;
-    sg.position.set(ox, oy, depth.current);
-
-    timer.current += d;
-    if (timer.current >= timeout.current) {
-      const s = statsRef.current;
-      s.score.total += 1;
-      s.score.incorrect += 1;
-      if (onStats) onStats({ score: { ...s.score }, level: s.level });
-      pendingPresent.current = true;
-      timer.current = 0;
-    }
-
-    if (frameRef.current) {
-      frameRef.current.position.z = 0;
-    }
+    sg.position.set(ox, oy, 0);
+    subMat.uniforms.uShift.value = depth.current * SHIFT_SCALE;
   });
 
   return (
     <group>
-      <mesh ref={frameRef} material={frameMat}>
-        <planeGeometry args={[FRAME_SIZE, FRAME_SIZE]} />
-      </mesh>
-      <group ref={subGroup}>
-        <mesh ref={subRef} material={subMat}>
-          <planeGeometry args={[SUB_SIZE, SUB_SIZE]} />
+      <group ref={subGroup} renderOrder={2}>
+        <mesh material={subMat}>
+          <planeGeometry args={[0.55, 0.55]} />
         </mesh>
       </group>
     </group>

@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { AnaglyphEffect } from 'three-stdlib';
+import * as THREE from 'three';
+import { StereoCamera } from 'three';
+import { setEyePass } from '../lib/rdsEyePass';
 import { setEyeVerticalOffset } from '../lib/anaglyphEyeOffset';
 
 interface RigProps {
@@ -12,38 +14,131 @@ interface RigProps {
   enabledRef: React.MutableRefObject<boolean>;
 }
 
+/**
+ * Custom red/cyan anaglyph composer with random-dot-stereogram support.
+ *
+ * Replaces three-stdlib's AnaglyphEffect so the per-eye RDS materials
+ * (lib/rdsEyePass.ts) can switch sampling offset between the two renders:
+ * the scene is drawn once per eye through a StereoCamera into a render
+ * target each, then composited — left pass into the RED channel, right pass
+ * into the CYAN channel (Dubois-style weighting). StereoCamera is used
+ * directly so lib/anaglyphEyeOffset.ts's prototype patch (vertical eye
+ * shift for Base Up/Down) keeps applying.
+ */
 export function AnaglyphRig({ eyeOffsetRef, enabledRef }: RigProps) {
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
   const camera = useThree((s) => s.camera);
+  const size = useThree((s) => s.size);
 
-  const effect = useMemo(() => new AnaglyphEffect(gl), [gl]);
-
-  // Keep the anaglyph render targets in sync with canvas size without
-  // calling effect.setSize (it would fight R3F's own renderer sizing).
-  useEffect(() => {
-    const w = Math.floor(gl.domElement.width);
-    const h = Math.floor(gl.domElement.height);
-    const internal = effect as unknown as {
-      _renderTargetL?: { setSize: (w: number, h: number) => void };
-      _renderTargetR?: { setSize: (w: number, h: number) => void };
+  const rig = useMemo(() => {
+    const stereo = new StereoCamera();
+    stereo.eyeSep = 0.064;
+    return {
+      stereo,
+      targetL: new THREE.WebGLRenderTarget(1, 1, {
+        minFilter: THREE.LinearFilter,
+        magFilter: THREE.NearestFilter,
+      }),
+      targetR: new THREE.WebGLRenderTarget(1, 1, {
+        minFilter: THREE.LinearFilter,
+        magFilter: THREE.NearestFilter,
+      }),
     };
-    internal._renderTargetL?.setSize(w, h);
-    internal._renderTargetR?.setSize(w, h);
-  }, [gl, effect, sizeKey(gl)]);
+  }, []);
+
+  // Composite quad: R = red-weighted left view + cyan-weighted right view.
+  const composite = useMemo(() => {
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        mapL: { value: rig.targetL.texture },
+        mapR: { value: rig.targetR.texture },
+      },
+      vertexShader: /* glsl */ `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        uniform sampler2D mapL;
+        uniform sampler2D mapR;
+        varying vec2 vUv;
+        // Dubois red/cyan matrices (from three.js AnaglyphEffect).
+        void main() {
+          vec4 l = texture2D(mapL, vUv);
+          vec4 r = texture2D(mapR, vUv);
+          vec3 colL = vec3(
+            dot(l.rgb, vec3(0.4561, -0.0400824, -0.0152161)),
+            dot(l.rgb, vec3(0.500484, -0.0378246, -0.0205971)),
+            dot(l.rgb, vec3(0.176381, -0.0157519, -0.00546856))
+          );
+          vec3 colR = vec3(
+            dot(r.rgb, vec3(-0.0434706, 0.378476, -0.0721527)),
+            dot(r.rgb, vec3(-0.0869383, 0.71564, -0.123107)),
+            dot(r.rgb, vec3(-0.10272, 0.34324, 0.809889))
+          );
+          gl_FragColor = vec4(colL + colR, 1.0);
+        }
+      `,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+    const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const fsScene = new THREE.Scene();
+    fsScene.add(quad);
+    return { fsScene, cam, mat };
+  }, [rig]);
+
+  useEffect(() => {
+    const w = Math.max(1, Math.floor(size.width * gl.getPixelRatio()));
+    const h = Math.max(1, Math.floor(size.height * gl.getPixelRatio()));
+    rig.targetL.setSize(w, h);
+    rig.targetR.setSize(w, h);
+  }, [gl, rig, size]);
+
+  useEffect(
+    () => () => {
+      rig.targetL.dispose();
+      rig.targetR.dispose();
+      composite.mat.dispose();
+    },
+    [rig, composite]
+  );
 
   useFrame(() => {
     if (!enabledRef.current) {
+      gl.setRenderTarget(null);
       gl.clear(true, true, true);
       return;
     }
+
     setEyeVerticalOffset(eyeOffsetRef.current);
-    effect.render(scene, camera);
+    // R3F's default session camera is perspective (see AnaglyphCanvas props);
+    // StereoCamera.update's typing just doesn't know it.
+    rig.stereo.update(camera as unknown as THREE.PerspectiveCamera);
+
+    // Left pass.
+    setEyePass(true);
+    gl.setRenderTarget(rig.targetL);
+    gl.clear(true, true, true);
+    gl.render(scene, rig.stereo.cameraL);
+
+    // Right pass.
+    setEyePass(false);
+    gl.setRenderTarget(rig.targetR);
+    gl.clear(true, true, true);
+    gl.render(scene, rig.stereo.cameraR);
+
+    // Composite to screen: left -> red, right -> cyan.
+    gl.setRenderTarget(null);
+    gl.clear(true, true, true);
+    // R3F's render typing narrows to PerspectiveCamera; the full-screen quad
+    // pass runs through an OrthographicCamera, which three.js accepts.
+    gl.render(composite.fsScene, composite.cam as unknown as THREE.PerspectiveCamera);
   }, 1);
 
   return null;
-}
-
-function sizeKey(gl: { domElement: HTMLCanvasElement }): string {
-  return `${gl.domElement.width}x${gl.domElement.height}`;
 }

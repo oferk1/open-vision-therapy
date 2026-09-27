@@ -3,16 +3,17 @@
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { makeETexture } from '../../lib/textures';
+import { makeEMaskTexture } from '../../lib/textures';
+import { RdsMaterial } from '../../lib/rdsEyePass';
 import type { ArrowDir, EngineProps } from '../../lib/types';
 import { randDir } from '../../lib/utils';
 import { useEngineInput } from './shared';
 
 const BOUNDS = 2.6;
+const TARGET_SIZE = 1.2;
 
 export default function PursuitsEngine({ settings, running, statsRef, inputRef, onStats }: EngineProps) {
   const group = useRef<THREE.Group>(null);
-  const mesh = useRef<THREE.Mesh>(null);
   const pos = useRef({ x: 0, y: 0.6, dx: 0.62, dy: 0.38 });
   const orientation = useRef<ArrowDir>(randDir());
   const size = useRef(1.15);
@@ -21,17 +22,18 @@ export default function PursuitsEngine({ settings, running, statsRef, inputRef, 
   const flipInterval = useRef(3.2);
   const awaiting = useRef(true);
 
-  const textures = useMemo(() => ({
-    up: makeETexture('up'),
-    down: makeETexture('down'),
-    left: makeETexture('left'),
-    right: makeETexture('right'),
-  }), []);
-
-  const material = useMemo(
-    () => new THREE.MeshBasicMaterial({ transparent: true, map: textures.up }),
-    [textures]
+  // Four orientation masks, one reusable RDS material — the engine just
+  // swaps uMask when the E re-randomizes.
+  const masks = useMemo(
+    () => ({
+      up: makeEMaskTexture('up'),
+      down: makeEMaskTexture('down'),
+      left: makeEMaskTexture('left'),
+      right: makeEMaskTexture('right'),
+    }),
+    []
   );
+  const material = useMemo(() => new RdsMaterial(masks.up), [masks]);
 
   useEngineInput({ settings, running, statsRef, inputRef, onStats }, () => orientation.current, onAnswered);
 
@@ -45,9 +47,9 @@ export default function PursuitsEngine({ settings, running, statsRef, inputRef, 
   }
 
   useEffect(() => () => {
-    Object.values(textures).forEach((t) => t.dispose());
+    Object.values(masks).forEach((t) => t.dispose());
     material.dispose();
-  }, [textures, material]);
+  }, [masks, material]);
 
   useFrame((_state, delta) => {
     if (!running) return;
@@ -55,8 +57,7 @@ export default function PursuitsEngine({ settings, running, statsRef, inputRef, 
 
     if (awaiting.current) {
       orientation.current = randDir();
-      material.map = textures[orientation.current];
-      material.needsUpdate = true;
+      material.uniforms.uMask.value = masks[orientation.current];
       awaiting.current = false;
     }
 
@@ -78,16 +79,15 @@ export default function PursuitsEngine({ settings, running, statsRef, inputRef, 
       if (Math.abs(p.x) > BOUNDS) { p.x = Math.sign(p.x) * BOUNDS; p.dx *= -1; }
       if (Math.abs(p.y) > BOUNDS) { p.y = Math.sign(p.y) * BOUNDS; p.dy *= -1; }
       g.position.set(p.x, p.y, 0);
+      g.scale.setScalar(size.current);
     }
-    if (mesh.current) {
-      mesh.current.scale.setScalar(size.current);
-    }
+    material.uniforms.uShift.value = 0.14;
   });
 
   return (
     <group ref={group} position={[0, 0.6, 0]}>
-      <mesh ref={mesh} material={material}>
-        <planeGeometry args={[1.2, 1.2]} />
+      <mesh material={material}>
+        <planeGeometry args={[TARGET_SIZE, TARGET_SIZE]} />
       </mesh>
     </group>
   );
