@@ -1,0 +1,1 @@
+self.__SSG_MANIFEST=new Set(["\u002Fexercise\u002F[id]","\u002Fexercise\u002F[id]\u002Fresults","\u002Fexercise\u002F[id]\u002Fsession"]);self.__SSG_MANIFEST_CB&&self.__SSG_MANIFEST_CB()
