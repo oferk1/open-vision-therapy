@@ -3,6 +3,11 @@
 A client-side-only vision therapy web app that replicates the exercise mechanics of HTS2
 (Home Therapy System) using red/cyan anaglyph 3D rendered with Three.js.
 
+**Documentation lives in the companion repo
+[oferk1/open-vision-therapy-docs](https://github.com/oferk1/open-vision-therapy-docs)** —
+guides to every exercise mode, configuration, architecture, and external learning
+resources.
+
 ## Routes
 
 - `/` — exercise menu (9 cards)
