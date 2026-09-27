@@ -170,17 +170,17 @@ export default function VergenceBaseEngine({
 
   return (
     <group>
-      {/* HTS-style tri-band display: three 2.4-wide bands tiling the block
-          [-3.6, 3.6] with no overlap — red strip, purple fusion zone, blue
-          strip, black margins outside (like the HTS screen). */}
-      <mesh material={bandL} position={[-2.4, 0, -0.06]} renderOrder={-8} frustumCulled={false}>
-        <planeGeometry args={[2.4, 6]} />
+      {/* HTS-style tri-band display: three 2.5-wide bands tiling a centered
+          7.5×3.8 block — red strip, purple fusion zone, blue strip — with
+          black margins all around (like the HTS screen). */}
+      <mesh material={bandL} position={[-2.5, 0, -0.06]} renderOrder={-8} frustumCulled={false}>
+        <planeGeometry args={[2.5, 3.8]} />
       </mesh>
       <mesh material={bandC} position={[0, 0, -0.06]} renderOrder={-7} frustumCulled={false}>
-        <planeGeometry args={[2.4, 6]} />
+        <planeGeometry args={[2.5, 3.8]} />
       </mesh>
-      <mesh material={bandR} position={[2.4, 0, -0.06]} renderOrder={-6} frustumCulled={false}>
-        <planeGeometry args={[2.4, 6]} />
+      <mesh material={bandR} position={[2.5, 0, -0.06]} renderOrder={-6} frustumCulled={false}>
+        <planeGeometry args={[2.5, 3.8]} />
       </mesh>
       {/* Suppression-check markers flank the fusion strip, inside its edges. */}
       <mesh ref={markerL} material={markerMatL} position={[-0.55, 0, -0.05]} renderOrder={-5}>
