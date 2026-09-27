@@ -100,6 +100,17 @@ export function makeEMaskTexture(orientation: ArrowDir): THREE.CanvasTexture {
   return toMaskTexture(canvas);
 }
 
+/** Letter 'B' as an alpha mask — the monocular fixation markers. */
+export function makeBMaskTexture(): THREE.CanvasTexture {
+  const { canvas, ctx } = makeMaskCanvas(128);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 96px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('B', 64, 68);
+  return toMaskTexture(canvas);
+}
+
 /** Solid direction arrow as an alpha mask (points in `dir` local space). */
 export function makeArrowMaskTexture(dir: ArrowDir): THREE.CanvasTexture {
   const { canvas, ctx } = makeMaskCanvas(128);

@@ -37,10 +37,14 @@ function EngineFor({ id, engineProps }: { id: ExerciseId; engineProps: EnginePro
 }
 
 export default function ExerciseScene({ id, engineProps }: { id: ExerciseId; engineProps: EngineProps }) {
-  const showFixation = id !== 'pursuits' && id !== 'saccades' && id !== 'accommodative-rock';
+  const vergenceVariant = variantForExercise(id);
+  const showFixation = !vergenceVariant && id !== 'pursuits' && id !== 'saccades' && id !== 'accommodative-rock';
+  // Vergence modes render the HTS-style tri-band display, which replaces the
+  // surround entirely — a world-wide speckle field would bleed under the
+  // monocular strips in the opposite eye's pass and break channel isolation.
   return (
     <>
-      <SpeckleField />
+      {!vergenceVariant && <SpeckleField />}
       {showFixation && <FixationCross />}
       <EngineFor id={id} engineProps={engineProps} />
     </>

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { makeArrowMaskTexture } from '../../lib/textures';
+import { makeArrowMaskTexture, makeBMaskTexture, makeEmptyMaskTexture } from '../../lib/textures';
 import { RdsMaterial } from '../../lib/rdsEyePass';
 import type { ArrowDir, EngineProps, ExerciseId } from '../../lib/types';
 import { ARROW_DIRS, randDir, randRange } from '../../lib/utils';
@@ -39,7 +39,9 @@ export default function VergenceBaseEngine({
   eyeOffsetRef,
   onStats,
 }: VergenceBaseProps) {
-  const subGroup = useRef<THREE.Group>(null);  const orientation = useRef<ArrowDir>('up');
+  const subGroup = useRef<THREE.Group>(null);
+  const markerL = useRef<THREE.Mesh>(null);
+  const markerR = useRef<THREE.Mesh>(null);  const orientation = useRef<ArrowDir>('up');
   const depth = useRef(settings.baseDepth);
   const targetDepth = useRef(settings.baseDepth);
   const ductionPhase = useRef(0);
@@ -49,6 +51,15 @@ export default function VergenceBaseEngine({
   const vertical = variant === 'base-up' || variant === 'base-down';
 
   const subMat = useMemo(() => new RdsMaterial(makeArrowMaskTexture('up')), []);
+
+  // HTS-style tri-band display: left monocular strip (red), central
+  // binocular fusion strip, right monocular strip (blue), plus the
+  // suppression-check 'B' markers flanking the center.
+  const bandL = useMemo(() => new RdsMaterial(makeEmptyMaskTexture()), []);
+  const bandC = useMemo(() => new RdsMaterial(makeEmptyMaskTexture()), []);
+  const bandR = useMemo(() => new RdsMaterial(makeEmptyMaskTexture()), []);
+  const markerMatL = useMemo(() => new RdsMaterial(makeBMaskTexture()), []);
+  const markerMatR = useMemo(() => new RdsMaterial(makeBMaskTexture()), []);
 
   const arrowMasks = useMemo(() => {
     const map = {} as Record<ArrowDir, THREE.Texture>;
@@ -80,10 +91,28 @@ export default function VergenceBaseEngine({
     timer.current = 0;
   }
 
+  useEffect(() => {
+    bandL.uniforms.uMode.value = 0; // left-eye-only → red strip
+    bandC.uniforms.uMode.value = 1; // binocular → purple fusion strip
+    bandC.uniforms.uDual.value = 1; // red+blue dot union (HTS component style)
+    bandR.uniforms.uMode.value = 2; // right-eye-only → blue strip
+    markerMatL.uniforms.uMode.value = 0;
+    markerMatL.uniforms.uSolid.value = 1;
+    markerMatL.uniforms.uColor.value = new THREE.Color('#ef4444');
+    markerMatR.uniforms.uMode.value = 2;
+    markerMatR.uniforms.uSolid.value = 1;
+    markerMatR.uniforms.uColor.value = new THREE.Color('#3b82f6');
+  }, [bandL, bandC, bandR, markerMatL, markerMatR]);
+
   useEffect(() => () => {
     Object.values(arrowMasks).forEach((t) => t.dispose());
     subMat.dispose();
-  }, [arrowMasks, subMat]);
+    bandL.dispose();
+    bandC.dispose();
+    bandR.dispose();
+    markerMatL.dispose();
+    markerMatR.dispose();
+  }, [arrowMasks, subMat, bandL, bandC, bandR, markerMatL, markerMatR]);
 
   useFrame((_state, delta) => {
     const d = Math.min(delta, 0.05);
@@ -141,6 +170,25 @@ export default function VergenceBaseEngine({
 
   return (
     <group>
+      {/* HTS-style tri-band display: three 2.4-wide bands tiling the block
+          [-3.6, 3.6] with no overlap — red strip, purple fusion zone, blue
+          strip, black margins outside (like the HTS screen). */}
+      <mesh material={bandL} position={[-2.4, 0, -0.06]} renderOrder={-8} frustumCulled={false}>
+        <planeGeometry args={[2.4, 6]} />
+      </mesh>
+      <mesh material={bandC} position={[0, 0, -0.06]} renderOrder={-7} frustumCulled={false}>
+        <planeGeometry args={[2.4, 6]} />
+      </mesh>
+      <mesh material={bandR} position={[2.4, 0, -0.06]} renderOrder={-6} frustumCulled={false}>
+        <planeGeometry args={[2.4, 6]} />
+      </mesh>
+      {/* Suppression-check markers flank the fusion strip, inside its edges. */}
+      <mesh ref={markerL} material={markerMatL} position={[-0.55, 0, -0.05]} renderOrder={-5}>
+        <planeGeometry args={[0.28, 0.28]} />
+      </mesh>
+      <mesh ref={markerR} material={markerMatR} position={[0.55, 0, -0.05]} renderOrder={-5}>
+        <planeGeometry args={[0.28, 0.28]} />
+      </mesh>
       <group ref={subGroup} renderOrder={2}>
         <mesh material={subMat}>
           <planeGeometry args={[0.55, 0.55]} />

@@ -65,10 +65,28 @@ export function AnaglyphRig({ eyeOffsetRef, enabledRef }: RigProps) {
         uniform sampler2D mapL;
         uniform sampler2D mapR;
         varying vec2 vUv;
-        // Dubois red/cyan matrices (from three.js AnaglyphEffect).
         void main() {
           vec4 l = texture2D(mapL, vUv);
           vec4 r = texture2D(mapR, vUv);
+          // Alpha 0.5 flags channel-routed content (written by the RDS
+          // materials): monocular strips go straight into their own channel,
+          // dual (component) content unions red+blue like the classic HTS
+          // red/blue display. Everything else gets the Dubois mix.
+          bool lSig = l.a < 0.99;
+          bool rSig = r.a < 0.99;
+          if (lSig && !rSig) {
+            gl_FragColor = vec4(l.r, 0.0, 0.0, 1.0);
+            return;
+          }
+          if (rSig && !lSig) {
+            gl_FragColor = vec4(0.0, 0.0, r.b, 1.0);
+            return;
+          }
+          if (lSig && rSig) {
+            gl_FragColor = vec4(l.r, 0.0, r.b, 1.0);
+            return;
+          }
+          // Dubois red/cyan matrices (from three.js AnaglyphEffect).
           vec3 colL = vec3(
             dot(l.rgb, vec3(0.4561, -0.0400824, -0.0152161)),
             dot(l.rgb, vec3(0.500484, -0.0378246, -0.0205971)),
@@ -91,6 +109,12 @@ export function AnaglyphRig({ eyeOffsetRef, enabledRef }: RigProps) {
     fsScene.add(quad);
     return { fsScene, cam, mat };
   }, [rig]);
+
+  useEffect(() => {
+    // Render targets must clear to alpha 1 so the composite can distinguish
+    // "normal background" from alpha-0 monocular isolation signals.
+    gl.setClearColor(0x000000, 1);
+  }, [gl]);
 
   useEffect(() => {
     const w = Math.max(1, Math.floor(size.width * gl.getPixelRatio()));
