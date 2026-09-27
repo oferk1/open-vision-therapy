@@ -15,7 +15,7 @@ import type { ArrowDir } from './types';
  */
 
 /** World units covered by one repeat of the shared noise texture. */
-export const NOISE_UNITS = 4;
+export const NOISE_UNITS = 12;
 
 const NOISE_SIZE = 512;
 /** Fraction of noise cells that are white dots (rest are black). */

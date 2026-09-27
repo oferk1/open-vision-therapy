@@ -23,11 +23,12 @@ interface VergenceBaseProps extends EngineProps {
 
 /**
  * Disparity scaling: engine `depth` values (config demand + escalation steps)
- * map to masked-region lateral shift in world units. The shared noise dot
- * pitch is NOISE_UNITS/512 ≈ 0.008 world units, so SHIFT_SCALE × depth gives
- * a sensible dot count at default depths.
+ * map to masked-region lateral shift in world units. One noise texel is
+ * NOISE_UNITS/512 ≈ 0.023 world units (≈3 CSS px); the RDS shader snaps
+ * shifts to whole texels, so SHIFT_SCALE × depth spans ~2 texels at the
+ * starting demand (0.35) up to ~10 texels at the escalation cap (1.8).
  */
-const SHIFT_SCALE = 0.06;
+const SHIFT_SCALE = 0.45;
 
 export default function VergenceBaseEngine({
   variant,

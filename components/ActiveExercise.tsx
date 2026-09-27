@@ -143,11 +143,11 @@ export default function ActiveExercise({
         <ExerciseScene id={id} engineProps={engineProps} />
       </AnaglyphCanvas>
 
-      {/* HUD */}
-      <div className="pointer-events-none fixed inset-0 p-4 font-mono text-slate-200">
+      {/* HUD — solid chips so it stays readable over the speckle field */}
+      <div className="pointer-events-none fixed inset-0 p-4 font-mono text-slate-100">
         <div className="flex items-start justify-between">
-          <div className="text-sm leading-6">
-            <div className="text-xs uppercase tracking-widest text-slate-400">{meta.name}</div>
+          <div className="space-y-1 rounded-lg bg-black/70 px-3 py-2 text-sm leading-6 ring-1 ring-white/10">
+            <div className="text-xs uppercase tracking-widest text-slate-300">{meta.name}</div>
             <div>
               Correct: <span className="text-emerald-400">{stats.score.correct}</span>
             </div>
@@ -155,14 +155,14 @@ export default function ActiveExercise({
               Incorrect: <span className="text-rose-400">{stats.score.incorrect}</span>
             </div>
             <div>
-              Percent: <span className="text-sky-400">{Math.round(percent * 100)}%</span>
+              Percent: <span className="text-sky-300">{Math.round(percent * 100)}%</span>
             </div>
           </div>
-          <div className="text-right text-sm leading-6">
-            <div className="text-xs uppercase tracking-widest text-slate-400">Time</div>
+          <div className="space-y-1 rounded-lg bg-black/70 px-3 py-2 text-right text-sm leading-6 ring-1 ring-white/10">
+            <div className="text-xs uppercase tracking-widest text-slate-300">Time</div>
             <div className="text-2xl">{fmtClock(remaining)}</div>
-            <div className="text-xs text-slate-400">Esc to exit early</div>
-            <div className="text-xs text-slate-500">Level {stats.level}</div>
+            <div className="text-xs text-slate-300">Esc to exit early</div>
+            <div className="text-xs text-slate-400">Level {stats.level}</div>
           </div>
         </div>
       </div>

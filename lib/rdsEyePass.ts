@@ -52,12 +52,15 @@ export class RdsMaterial extends THREE.ShaderMaterial {
           // sample identical dots in both eyes (zero disparity, fused at the
           // screen plane and camouflaged against the surround field).
           vec2 wuv = vWorld.xy / ${NOISE_UNITS}.0;
-          float s = uShift * uEye * m / ${NOISE_UNITS}.0;
-          vec4 texel = texture2D(uNoise, wuv - vec2(s, 0.0));
+          // Snap the disparity to whole noise texels — clean Julesz dot-level
+          // shifts fuse crisply; fractional shifts smear dot edges.
+          float texels = floor(uShift * uEye * m * ${NOISE_UNITS}.0 + 0.5);
+          vec4 texel = texture2D(uNoise, wuv - vec2(texels / ${NOISE_UNITS}.0, 0.0));
           // Fully opaque noise (white/black dots, no holes): the naked-eye
           // image is uniform speckle everywhere — the masked shape exists
-          // only as binocular disparity.
-          gl_FragColor = vec4(texel.rgb, 1.0);
+          // only as binocular disparity. Slightly dimmed for comfort under
+          // the Dubois composite.
+          gl_FragColor = vec4(texel.rgb * 0.85, 1.0);
         }
       `,
       transparent: true,
