@@ -37,7 +37,11 @@ export interface Score {
 /** Optional per-exercise difficulty settings, populated from the config modal. */
 export interface ExerciseSettings {
   durationMinutes: number;
-  /** Base stereo demand in world units for vergence exercises (0 disables depth demand). */
+  /**
+   * Clinical-demand scale for vergence exercises: 1.0 = the `LIMITS` ladder
+   * defaults (course §4.11), clamped to 0.25–2× inside the engines. Demands are
+   * always computed in prism diopters, never in world units.
+   */
   baseDepth: number;
   /** Movement speed multiplier for pursuits (1 = default). */
   speed: number;

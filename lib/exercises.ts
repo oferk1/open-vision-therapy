@@ -65,7 +65,7 @@ export const EXERCISES: ExerciseMeta[] = [
   {
     id: 'vergence-base-up',
     name: 'Vergence Base Up',
-    blurb: 'Left view shifts up; fuse the vertical mismatch and report position.',
+    blurb: 'Base-up prism: left view drops. Fuse the vertical mismatch and report position.',
     defaultMinutes: 5,
     stereo: true,
     controls: 'Arrow keys',
@@ -73,7 +73,7 @@ export const EXERCISES: ExerciseMeta[] = [
   {
     id: 'vergence-base-down',
     name: 'Vergence Base Down',
-    blurb: 'Left view shifts down; fuse the vertical mismatch and report position.',
+    blurb: 'Base-down prism: left view rises. Fuse the vertical mismatch and report position.',
     defaultMinutes: 5,
     stereo: true,
     controls: 'Arrow keys',

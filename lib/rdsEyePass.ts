@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { getSharedNoiseTexture, NOISE_UNITS } from './textures';
+import { getSharedNoiseTexture, NOISE_SIZE, NOISE_UNITS } from './textures';
 
 /**
  * Per-eye random-dot-stereogram material.
@@ -11,8 +11,16 @@ import { getSharedNoiseTexture, NOISE_UNITS } from './textures';
  * shape a binocular disparity: it fuses at a depth in front of / behind the
  * screen while remaining pure noise to either eye alone.
  *
- * Disparity convention: uShift > 0 behaves like positive world Z (toward the
- * viewer, convergence demand); uShift < 0 sinks the shape behind the field.
+ * Disparity convention: uShift > 0 shifts the masked dots of the LEFT image
+ * right and the RIGHT image left (images move toward each other) = crossed /
+ * Base-Out / convergence demand = nearer percept; uShift < 0 sinks the shape
+ * behind the field (course §2.1, §2.4).
+ *
+ * uShift is in WORLD UNITS at the stimulus plane and is snapped to whole noise
+ * texels (NOISE_TEXEL_WORLD ≈ 0.0234 wu, ≈ 0.1 Δ on the reference display).
+ * Compute it with `pdToWorldShift(pd, view, screen, cam)` — never with a bare
+ * constant: a demand expressed in world units changes meaning with the monitor
+ * and the window size (course §3.3.5, audit §H).
  */
 
 const registry = new Set<RdsMaterial>();
@@ -81,12 +89,20 @@ export class RdsMaterial extends THREE.ShaderMaterial {
           // screen plane and camouflaged against the surround field).
           vec2 wuv = vWorld.xy / ${NOISE_UNITS}.0;
           // Snap the disparity to whole noise texels — clean Julesz dot-level
-          // shifts fuse crisply; fractional shifts smear dot edges. Monocular
-          // strips stay at zero disparity so they read as continuations of
-          // the field in their own eye.
+          // shifts fuse crisply; fractional shifts resample the dot grid (dots
+          // change width, the two eyes stop seeing pure shifts of each other)
+          // and the target shimmers instead of fusing at a depth.
+          //
+          // UNITS, in this order: world → texels → UV.
+          //   texels = shift · (NOISE_SIZE / NOISE_UNITS)
+          //   uv offset = texels / NOISE_SIZE
+          // Dividing by NOISE_UNITS instead of NOISE_SIZE in the second step is
+          // a ~12× disparity error (see course audit §H). Monocular strips stay
+          // at zero disparity so they read as continuations of the field in
+          // their own eye.
           float shift = uMode < 0.5 || uMode > 1.5 ? 0.0 : uShift * uEye * shape;
-          float texels = floor(shift * ${NOISE_UNITS}.0 + 0.5);
-          vec4 texel = texture2D(uNoise, wuv - vec2(texels / ${NOISE_UNITS}.0, 0.0));
+          float texels = floor(shift * (${NOISE_SIZE}.0 / ${NOISE_UNITS}.0) + 0.5);
+          vec4 texel = texture2D(uNoise, wuv - vec2(texels / ${NOISE_SIZE}.0, 0.0));
           vec3 noise = texel.rgb * 0.85;
           vec3 col = uSolid > 0.5 ? mix(noise, uColor, shape) : noise;
           // Alpha is an isolation signal for the composer: monocular strips

@@ -7,10 +7,19 @@ import { makeEMaskTexture } from '../../lib/textures';
 import { RdsMaterial } from '../../lib/rdsEyePass';
 import type { ArrowDir, EngineProps } from '../../lib/types';
 import { randDir, randRange } from '../../lib/utils';
+import {
+  DEFAULT_SCREEN,
+  DEFAULT_VIEW,
+  cameraSpecFrom,
+  pdToWorldShift,
+} from '../../lib/stereopsis';
 import { useEngineInput } from './shared';
 
 const BOUND = 2.4;
 const TARGET_SIZE = 1.1;
+
+/** Standing disparity of the fixation target, prism diopters (§4.11). */
+const TARGET_PD = 0.4;
 
 export default function SaccadesEngine({ settings, running, statsRef, inputRef, onStats }: EngineProps) {
   const group = useRef<THREE.Group>(null);
@@ -48,9 +57,13 @@ export default function SaccadesEngine({ settings, running, statsRef, inputRef, 
     material.dispose();
   }, [masks, material]);
 
-  useFrame((_state, delta) => {
+  useFrame((state, delta) => {
     if (!running) return;
     const d = Math.min(delta, 0.05);
+
+    // Δ → world units from the live camera (§3.3.5); never a bare constant.
+    const cam = cameraSpecFrom(state.camera as THREE.PerspectiveCamera, state.size.height);
+    material.uniforms.uShift.value = pdToWorldShift(TARGET_PD, DEFAULT_VIEW, DEFAULT_SCREEN, cam);
 
     if (awaiting.current) {
       orientation.current = randDir();
@@ -74,7 +87,6 @@ export default function SaccadesEngine({ settings, running, statsRef, inputRef, 
       if (onStats) onStats({ score: { ...s.score }, level: s.level });
       awaiting.current = true;
     }
-    material.uniforms.uShift.value = 0.14;
   });
 
   return (

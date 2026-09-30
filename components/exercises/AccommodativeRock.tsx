@@ -7,11 +7,22 @@ import { makeEMaskTexture } from '../../lib/textures';
 import { RdsMaterial } from '../../lib/rdsEyePass';
 import type { ArrowDir, EngineProps } from '../../lib/types';
 import { randDir } from '../../lib/utils';
+import {
+  DEFAULT_SCREEN,
+  DEFAULT_VIEW,
+  cameraSpecFrom,
+  pdToWorldShift,
+} from '../../lib/stereopsis';
 import { useEngineInput } from './shared';
 
-/** Disparity (world units) of the far/near rock states. */
-const FAR_SHIFT = 0.06;
-const NEAR_SHIFT = 0.26;
+/**
+ * The two rock states, in prism diopters — both CROSSED, so the percept rocks
+ * between 25 cm and 10 cm in front of the glass on the reference display
+ * (course §4.7, §4.11). Keep `NEAR_PD < 2·FAR_PD` so the rock stays on one side
+ * of the screen plane and never collapses through Panum's area.
+ */
+const FAR_PD = 4;
+const NEAR_PD = 10;
 
 export default function AccommodativeRockEngine({ settings, running, statsRef, inputRef, onStats }: EngineProps) {
   const group = useRef<THREE.Group>(null);
@@ -50,9 +61,18 @@ export default function AccommodativeRockEngine({ settings, running, statsRef, i
     material.dispose();
   }, [masks, material]);
 
-  useFrame((_state, delta) => {
+  useFrame((state, delta) => {
     if (!running) return;
     const d = Math.min(delta, 0.05);
+
+    // Δ → world units from the live camera (§3.3.5); never a bare constant.
+    const cam = cameraSpecFrom(state.camera as THREE.PerspectiveCamera, state.size.height);
+    material.uniforms.uShift.value = pdToWorldShift(
+      phaseFar.current ? FAR_PD : NEAR_PD,
+      DEFAULT_VIEW,
+      DEFAULT_SCREEN,
+      cam,
+    );
 
     if (awaiting.current) {
       orientation.current = randDir();
@@ -61,8 +81,6 @@ export default function AccommodativeRockEngine({ settings, running, statsRef, i
       timer.current = 0;
       return;
     }
-
-    material.uniforms.uShift.value = phaseFar.current ? FAR_SHIFT : NEAR_SHIFT;
 
     timer.current += d;
     if (timer.current >= halfPeriod.current) {

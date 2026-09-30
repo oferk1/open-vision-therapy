@@ -7,10 +7,24 @@ import { makeEMaskTexture } from '../../lib/textures';
 import { RdsMaterial } from '../../lib/rdsEyePass';
 import type { ArrowDir, EngineProps } from '../../lib/types';
 import { randDir } from '../../lib/utils';
+import {
+  DEFAULT_SCREEN,
+  DEFAULT_VIEW,
+  cameraSpecFrom,
+  pdToWorldShift,
+} from '../../lib/stereopsis';
 import { useEngineInput } from './shared';
 
 const BOUNDS = 2.6;
 const TARGET_SIZE = 1.2;
+
+/**
+ * Standing disparity of the tracking target, in prism diopters (course §2.4,
+ * §4.11). It only has to lift the E off the speckle field for fusion — the dose
+ * of this exercise is the *pursuit*, not the vergence — so it is small and must
+ * stay inside central Panum's area to fuse effortlessly (~0.2–0.5 Δ, §1.3.3).
+ */
+const TARGET_PD = 0.4;
 
 export default function PursuitsEngine({ settings, running, statsRef, inputRef, onStats }: EngineProps) {
   const group = useRef<THREE.Group>(null);
@@ -51,9 +65,12 @@ export default function PursuitsEngine({ settings, running, statsRef, inputRef, 
     material.dispose();
   }, [masks, material]);
 
-  useFrame((_state, delta) => {
+  useFrame((state, delta) => {
     if (!running) return;
     const d = Math.min(delta, 0.05);
+
+    // Δ → world units from the live camera (§3.3.5); never a bare constant.
+    const cam = cameraSpecFrom(state.camera as THREE.PerspectiveCamera, state.size.height);
 
     if (awaiting.current) {
       orientation.current = randDir();
@@ -81,7 +98,7 @@ export default function PursuitsEngine({ settings, running, statsRef, inputRef, 
       g.position.set(p.x, p.y, 0);
       g.scale.setScalar(size.current);
     }
-    material.uniforms.uShift.value = 0.14;
+    material.uniforms.uShift.value = pdToWorldShift(TARGET_PD, DEFAULT_VIEW, DEFAULT_SCREEN, cam);
   });
 
   return (

@@ -17,7 +17,15 @@ import type { ArrowDir } from './types';
 /** World units covered by one repeat of the shared noise texture. */
 export const NOISE_UNITS = 12;
 
-const NOISE_SIZE = 512;
+/** Texels per repeat (512² canvas). */
+export const NOISE_SIZE = 512;
+
+/**
+ * One noise texel in world units — the disparity quantum of the RDS material
+ * (§3.2.4). Shifting by anything finer than this resamples the dot grid and
+ * destroys the "pure lateral shift" property that makes an RDS work.
+ */
+export const NOISE_TEXEL_WORLD = NOISE_UNITS / NOISE_SIZE; // ≈ 0.0234 wu
 /** Fraction of noise cells that are white dots (rest are black). */
 const NOISE_DENSITY = 0.5;
 
