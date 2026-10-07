@@ -26,7 +26,12 @@ export default function AnaglyphCanvas({
       className="fixed inset-0"
       dpr={[1, 2]}
       gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
-      camera={{ position: [0, 0, 6], fov: 50, near: 0.1, far: 100 }}
+      // `focus` is where THREE.StereoCamera puts the zero-disparity plane
+      // (eyeSepOnProjection = eyeSep/2 · near / focus). It must equal the
+      // camera → stimulus-plane distance: at the default 10, every point on the
+      // z = 0 plane — surround, strips, markers — carried a constant ~6.6 px
+      // (0.26 Δ) of spurious crossed disparity (course §3.3.3, harness §J).
+      camera={{ position: [0, 0, 6], fov: 50, near: 0.1, far: 100, focus: 6 }}
       style={{ position: 'fixed', inset: 0 }}
     >
       <color attach="background" args={['#05070a']} />

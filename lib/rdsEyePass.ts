@@ -17,7 +17,8 @@ import { getSharedNoiseTexture, NOISE_SIZE, NOISE_UNITS } from './textures';
  * behind the field (course §2.1, §2.4).
  *
  * uShift is in WORLD UNITS at the stimulus plane and is snapped to whole noise
- * texels (NOISE_TEXEL_WORLD ≈ 0.0234 wu, ≈ 0.1 Δ on the reference display).
+ * texels (NOISE_TEXEL_WORLD ≈ 0.0234 wu ≈ 6 px ≈ 0.23 Δ on the reference display
+ * with the z = 6, fov 50° camera — course §3.3.5).
  * Compute it with `pdToWorldShift(pd, view, screen, cam)` — never with a bare
  * constant: a demand expressed in world units changes meaning with the monitor
  * and the window size (course §3.3.5, audit §H).

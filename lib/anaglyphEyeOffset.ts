@@ -4,13 +4,17 @@ import type { Camera } from 'three';
 /**
  * Vertical eye-offset support for Vergence Base Up / Base Down.
  *
- * three-stdlib's AnaglyphEffect owns a private StereoCamera instance and calls
- * `_stereo.update(camera)` on every render, which recomputes both eye matrices
- * from scratch. We can't reach that instance, but it uses the same shared
- * `StereoCamera` class we import here — so we wrap `StereoCamera.prototype.update`
- * and, right after the stock update, nudge the LEFT eye's world matrix
- * vertically. Positive offset shifts the left-eye image UP on screen
- * (Base Up); negative shifts it DOWN (Base Down).
+ * `StereoCamera.update(camera)` recomputes both eye matrices from scratch on
+ * every render (components/AnaglyphRig.tsx calls it each frame), so a one-off
+ * edit of `cameraL.matrixWorld` would be overwritten. We therefore wrap
+ * `StereoCamera.prototype.update` and, right after the stock update, nudge the
+ * LEFT eye's world matrix vertically (course §3.3.4, mechanism b — a viewpoint
+ * translation, exact for the flat stimulus plane at z = 0).
+ *
+ * Sign: a POSITIVE offset shifts the left-eye IMAGE UP on screen. The prism
+ * convention (Base-Up = left image DOWN) is applied by the engine, which passes
+ * `BASE_UP_IMAGE_DOWN = -1` × demand (components/exercises/VergenceBase.tsx).
+ * The offset is in world units — compute it with `pdToWorldShift`.
  */
 
 let verticalOffset = 0;

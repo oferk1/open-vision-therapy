@@ -17,9 +17,10 @@ import { useEngineInput } from './shared';
 
 /**
  * The two rock states, in prism diopters — both CROSSED, so the percept rocks
- * between 25 cm and 10 cm in front of the glass on the reference display
- * (course §4.7, §4.11). Keep `NEAR_PD < 2·FAR_PD` so the rock stays on one side
- * of the screen plane and never collapses through Panum's area.
+ * between 16 cm (4 Δ) and 29 cm (10 Δ) in front of the glass on the reference
+ * display: a 12.7 cm excursion, 0.63 → 1.56 D of vergence–accommodation
+ * conflict (course §4.7, §4.11). Keep both values > 0 so the rock stays on one
+ * side of the screen plane and never collapses through Panum's area.
  */
 const FAR_PD = 4;
 const NEAR_PD = 10;
